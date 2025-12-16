@@ -4,6 +4,13 @@ import math
 from colorama import Fore
 import time
 
+C_PARAM = 2
+ROLLOUTS = 1
+ITTERATIONS = 5_000
+RUN_TIME = 3
+COMPUTER_STARTS = True
+
+print(f"Params:\tC: {C_PARAM}, rollouts: {ROLLOUTS}, itters: {ITTERATIONS}, runtime: {RUN_TIME}, computer starts: {COMPUTER_STARTS}")
 
 class GameState:
     def __init__(self, board, terminal=False, last_slot=None, winner=0, last_player = None):
@@ -64,7 +71,7 @@ class GameState:
 
         return random.choice(self.legal_moves())
 
-    def is_terminal(self):
+    def is_terminal(self, verbose=False):
         if self.last_slot is None:
             return False
 
@@ -73,7 +80,11 @@ class GameState:
             if self.board[r][self.last_slot]:
                 row = r
                 break
+
         player = self.last_player if self.last_player else 1
+
+        if verbose:
+            print(f"row: {row}, player: {player}")
 
         # Horizontal check
         for c in range(max(0, self.last_slot - 3), min(len(self.board[0]) - 3, self.last_slot + 1)):
@@ -157,7 +168,7 @@ class MCTSNode:
     def best_move(self):
         return max(self.children, key=lambda c: c.visits)
     
-    def best_child(self, c_param=1.4):#which child to choose based on exploitation vs exploration formula
+    def best_child(self, c_param=C_PARAM):#which child to choose based on exploitation vs exploration formula
         best_score = -float("inf")
         best_children = [] # if theres a tie
 
@@ -197,7 +208,6 @@ class MCTSNode:
             turns_ahead += 1
         
         #return 1 - turns_ahead*0.005 if curr_turn == self.turn else -1 + turns_ahead*0.005
-        #return 1 if curr_turn == self.turn else (turns_ahead-7 if turns_ahead<7 else -1)
         if curr_state.get_winner():
             return 1 if curr_turn == self.turn else -1 
         return 0 
@@ -214,9 +224,25 @@ def mcts(root_state, rollouts = 1, itterations = 1_000, run_time = 0):
     max_depth = 0
     i = 0
     start = time.time()
-    
-   
+    next_checkpoint = 0.10  # 10%
+
     while i < itterations or (time.time() - start) < run_time:
+
+        elapsed = time.time() - start
+
+        iter_progress = min(i / itterations, 1.0)
+        time_progress = min(elapsed / run_time, 1.0)
+
+        # Checkpoint logic
+        if iter_progress >= next_checkpoint and time_progress >= next_checkpoint:
+            print(
+            f"\r{round(next_checkpoint * 100)}% complete "
+            f"(iters={i}, time={elapsed:.2f}s)",
+            end="",
+            flush=True
+            )
+            next_checkpoint += 0.10
+
         i += 1
         depth = 0
         curr_node = root_node
@@ -238,67 +264,79 @@ def mcts(root_state, rollouts = 1, itterations = 1_000, run_time = 0):
 
         curr_node.backpropagate(winner)
     
+    print("\r100% complete".ljust(50))
 
     print(Fore.RESET + "Max depth: " + str(max_depth))
-    print(f"Time took: {time.time() - start}")
+    print(f"Itters: {i}  |  Time took: {(time.time() - start):.2f}\n")
 
     sorted_children = sorted(root_node.children, key=lambda obj: obj.visits, reverse=True)
     for child in sorted_children:
-        print(f"Move: {child.state.last_slot + 1}, EV: {round(float(child.value / child.visits), 3)}, Visits: {child.visits}")
+        print(f"Move: {child.state.last_slot + 1}, Avg. Value: {round(float(child.value / child.visits), 3)}, Visits: {child.visits}")
 
     return root_node.best_move()
 
 
-if __name__ == "__main__":
+board = [
+    [0,0,0,0,0,0,0],
+    [0,0,0,0,0,0,0],
+    [0,0,0,0,0,0,0],
+    [0,0,0,0,0,0,0],
+    [0,0,0,0,0,0,0],
+    [0,0,0,0,0,0,0]
+]
+# board[5][3] = 1
+# board[4][3] = -1
+# board[3][3] = 1
+# board[2][3] = -1
 
-    board = [
-        [0,0,0,0,0,0,0],
-        [0,0,0,0,0,0,0],
-        [0,0,0,0,0,0,0],
-        [0,0,0,0,0,0,0],
-        [0,0,0,0,0,0,0],
-        [0,0,0,0,0,0,0]
-    ]
-    # board[5][3] = -1
-    # board[4][3] = 1
-    # board[3][3] = -1
-    # board[2][3] = 1
+starting_state = GameState(board)
 
-    starting_state = GameState(board)
+my_turn = COMPUTER_STARTS #computer turn
 
-    my_turn = True #computer turn
+next_state = starting_state
 
-    next_state = starting_state
-
-    while not next_state.is_terminal():
-        if my_turn:
-            next_state.printState()
-            
-            best_node = mcts(next_state, rollouts=2, itterations=5_000, run_time=4)
-            next_state = best_node.state
-        else:
-            next_state.invert().printState()
-            user_in = ""
-            while not type(user_in) == int or not (int(user_in)-1) in next_state.legal_moves():
-                user_in = input("what slot (1-7): ").strip()
-                try:
-                    user_in = int(user_in)
-                except:
-                    pass
-
-            slot = int(user_in) - 1
-            next_state = next_state.place_piece(slot, -1)
-            if next_state:
-                next_state = next_state.invert()
-            else:
-                raise
-
-        my_turn = not my_turn
-
-        
+while not next_state.is_terminal():
     if my_turn:
         next_state.printState()
-    else:
-        next_state.copy().invert().printState()
         
-    print("Winner: " + str(next_state.get_winner()) if next_state.get_winner() else "Tie")
+        best_node = mcts(next_state, rollouts=ROLLOUTS, itterations=ITTERATIONS, run_time=RUN_TIME)
+        next_state = best_node.state
+
+    else:
+        next_state.invert().printState()
+
+        user_in = ""
+        while not type(user_in) == int or not (int(user_in)-1) in next_state.legal_moves():
+            user_in = input("what slot (1-7): ").strip()
+            try:
+                user_in = int(user_in)
+            except:
+                pass
+
+        slot = int(user_in) - 1
+        next_state = next_state.place_piece(slot, -1)
+
+        if next_state.is_terminal():
+            break
+
+        if next_state:
+            next_state = next_state.invert()
+        else:
+            raise
+
+    my_turn = not my_turn
+
+    
+if my_turn:
+    next_state.printState()
+else:
+    next_state.copy().invert().printState()
+    
+
+if next_state.get_winner():
+    if next_state.get_winner() == -1:
+        print("Player wins!")
+    else:
+        print("Computer wins.")
+else:
+    print("Tie!")
