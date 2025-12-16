@@ -31,8 +31,10 @@ This project is intended for validating an MCTS implementation before extending 
 
 - To experiment with the bot, edit the following lines in the source code:
 
-  - AI thinking time: **Modify line 277 to control how long the bot runs MCTS before choosing a move.**
+  - AI thinking time: **Modify line 10 to control how long the bot runs MCTS before choosing a move.**
 
-  - Starting player: **Toggle line 269 to change which player goes first.**
+  - Or alternativly, AI itterations: **Modify line 9 to control how many MCTS itterations the bot runs before choosing a move**
+
+  - Starting player: **Toggle line 11 to change which player goes first.**
 
 - The game state and moves are printed directly to the console.
