@@ -37,4 +37,7 @@ This project is intended for validating an MCTS implementation before extending 
 
   - Starting player: **Toggle line 11 to change which player goes first.**
 
+  - Advanced Settings: **Modify lines 7-8 to change MCTS settings.**
+
+
 - The game state and moves are printed directly to the console.
